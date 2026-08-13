@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 
+const API_URL = import.meta.env.VITE_BACKEND_URL;
+
 export default function ReservaExito() {
   const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
@@ -14,7 +16,7 @@ export default function ReservaExito() {
       // Si el pago está aprobado y tenemos el ID del turno
       if (paymentStatus === 'approved' && externalReference) {
         try {
-          await fetch('http://localhost:3000/api/appointments/confirm-manual', {
+          await fetch(`${API_URL}/api/appointments/confirm-manual`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ appointment_id: externalReference })

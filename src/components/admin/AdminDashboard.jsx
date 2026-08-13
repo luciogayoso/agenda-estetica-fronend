@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 
-const API_BASE_URL = 'http://localhost:3000'; // Ajusta la URL si usas otro puerto
+const API_URL = import.meta.env.VITE_BACKEND_URL; 
 
 export function AdminDashboard() {
   const [appointments, setAppointments] = useState([]);
@@ -10,7 +10,7 @@ export function AdminDashboard() {
   const fetchAppointments = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/appointments`);
+      const response = await fetch(`${API_URL}/api/appointments`);
       const data = await response.json();
       if (data.status === 'success') {
         setAppointments(data.data);

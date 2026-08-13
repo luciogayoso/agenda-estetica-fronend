@@ -4,7 +4,7 @@ import ScheduleManager from './ScheduleManager';
 import ServicesManager from './ServicesManager';
 import CalendarView from './CalendarView';
 
-const API_BASE_URL = 'http://localhost:3000';
+const API_URL = import.meta.env.VITE_BACKEND_URL;
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('agenda');
@@ -15,7 +15,7 @@ export default function AdminDashboard() {
   const fetchAppointments = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/appointments`);
+      const res = await fetch(`${API_URL}/api/appointments`);
       const data = await res.json();
       if (data.status === 'success') {
         setAppointments(data.data || []);

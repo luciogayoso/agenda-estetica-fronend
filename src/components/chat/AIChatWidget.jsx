@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Sparkles, MessageCircle, X, Send, Bot } from 'lucide-react';
 
+const API_URL = import.meta.env.VITE_BACKEND_URL;
+
 export default function AIChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
@@ -19,7 +21,7 @@ export default function AIChatWidget() {
     setLoading(true);
 
     try {
-      const response = await fetch('http://localhost:3000/api/ai/chat', {
+      const response = await fetch(`${API_URL}/api/ai/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: userMsg })

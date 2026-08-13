@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, User, Clock, RefreshCw } from 'lucide-react';
 
-const API_BASE_URL = 'http://localhost:3000';
+const API_URL = import.meta.env.VITE_BACKEND_URL;
 
 export default function CalendarView() {
   // Fecha actual seleccionada (formato YYYY-MM-DD)
@@ -15,7 +15,7 @@ export default function CalendarView() {
   const fetchAppointments = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/appointments`);
+      const res = await fetch(`${API_URL}/api/appointments`);
       const data = await res.json();
       if (data.status === 'success') {
         setAppointments(data.data || []);

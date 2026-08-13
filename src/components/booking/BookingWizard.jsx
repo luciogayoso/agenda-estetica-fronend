@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Clock, User, ArrowRight, ShieldCheck, CheckCircle2, MessageCircle, CreditCard } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
-const API_BASE = 'http://localhost:3000/api';
+const API_URL = import.meta.env.VITE_BACKEND_URL;
 
 const INITIAL_SERVICES = [
   { id: 1, name: 'Perfilado de Cejas & Henna', duration_minutes: 45, price: 12000, deposit_amount: 3000, image: '✨' },
@@ -33,7 +33,7 @@ export default function BookingWizard() {
 
     try {
       // 1. Petición al endpoint correcto del backend
-      const response = await fetch(`${API_BASE}/appointments/reserve`, {
+      const response = await fetch(`${API_BASE}/api/appointments/reserve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
