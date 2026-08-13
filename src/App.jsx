@@ -3,11 +3,11 @@ import { Routes, Route, Link, useNavigate } from 'react-router-dom';
 import { Sparkles, LayoutDashboard, Calendar, LogOut, Download, Smartphone, X } from 'lucide-react';
 import { Toaster } from 'react-hot-toast';
 
-import BookingSuccess from './pages/booking/bookingSuccess';
-import BookingWizard from './components/booking/bookingWizard';
-import AdminDashboard from './pages/admin/admindashboard';
-import Login from './pages/admin/login';
-import AIChatWidget from './components/chat/aichatWidget';
+import BookingSuccess from './pages/booking/BookingSuccess';
+import BookingWizard from './components/booking/BookingWizard';
+import AdminDashboard from './pages/admin/AdminDashboard';
+import Login from './pages/admin/Login';
+import AIChatWidget from './components/chat/AIChatWidget';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
