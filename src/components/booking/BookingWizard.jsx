@@ -33,7 +33,7 @@ export default function BookingWizard() {
 
     try {
       // 1. Petición al endpoint correcto del backend
-      const response = await fetch(`${API_BASE}/api/appointments/reserve`, {
+      const response = await fetch(`${API_URL}/api/appointments/reserve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
