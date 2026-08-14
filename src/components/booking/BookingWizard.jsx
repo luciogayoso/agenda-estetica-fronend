@@ -1,19 +1,13 @@
-import React, { useState } from 'react';
-import { Clock, User, ArrowRight, ShieldCheck, CheckCircle2, MessageCircle, CreditCard } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Clock, User, ArrowRight, ShieldCheck, CheckCircle2, MessageCircle, CreditCard, Loader2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
-const API_BASE = import.meta.env.VITE_BACKEND_URL;
-
-const INITIAL_SERVICES = [
-  { id: 1, name: 'Perfilado de Cejas & Henna', duration_minutes: 45, price: 12000, deposit_amount: 3000, image: '✨' },
-  { id: 2, name: 'Lifting de Pestañas + Nutrición', duration_minutes: 60, price: 15000, deposit_amount: 4000, image: '🌸' },
-  { id: 3, name: 'Limpieza Facial Profunda Glow', duration_minutes: 75, price: 22000, deposit_amount: 5000, image: '🌿' },
-  { id: 4, name: 'Soft Gel Nails Art', duration_minutes: 90, price: 18000, deposit_amount: 4000, image: '💅' }
-];
+const API_BASE = import.meta.env.VITE_BACKEND_URL || 'https://agenda-estetica-backend.onrender.com';
 
 export default function BookingWizard() {
   const [step, setStep] = useState(1);
-  const [services] = useState(INITIAL_SERVICES);
+  const [services, setServices] = useState([]);
+  const [loadingServices, setLoadingServices] = useState(true);
   const [selectedService, setSelectedService] = useState(null);
   const [appointmentDate, setAppointmentDate] = useState('');
   const [appointmentTime, setAppointmentTime] = useState('');
@@ -22,17 +16,35 @@ export default function BookingWizard() {
   const [loading, setLoading] = useState(false);
   const [paymentUrl, setPaymentUrl] = useState('');
 
+  // Cargar servicios desde Supabase mediante la API del backend
+  useEffect(() => {
+    const fetchServices = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/api/services`);
+        const data = await response.json();
+        if (Array.isArray(data)) {
+          setServices(data);
+        }
+      } catch (err) {
+        console.error('Error al cargar la lista de servicios:', err);
+      } finally {
+        setLoadingServices(false);
+      }
+    };
+
+    fetchServices();
+  }, []);
+
   const handleNextStep = () => {
     if (step === 1 && selectedService) setStep(2);
     else if (step === 2 && appointmentDate && appointmentTime) setStep(3);
   };
 
- const handleReserve = async (e) => {
+  const handleReserve = async (e) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      // 1. Petición al endpoint correcto del backend
       const response = await fetch(`${API_BASE}/api/appointments/reserve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -47,12 +59,9 @@ export default function BookingWizard() {
 
       const data = await response.json();
 
-      // 2. Si la reserva y preferencia de MP se crearon exitosamente
       if (data.status === 'success' && data.init_point) {
-        // Efecto de confetti
         confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
-
-        // 🚀 Redirección automática inmediata al Checkout de Mercado Pago
+        setPaymentUrl(data.init_point);
         window.location.href = data.init_point;
       } else {
         alert(data.message || 'Hubo un inconveniente al procesar la reserva.');
@@ -93,51 +102,61 @@ export default function BookingWizard() {
         </div>
       )}
 
-      {/* Paso 1 */}
+      {/* Paso 1: Selección de Servicios */}
       {step === 1 && (
         <div className="space-y-4">
           <h2 className="font-serif text-2xl text-gray-800 font-semibold mb-1">Elige tu experiencia</h2>
           <p className="text-sm text-gray-500 mb-6">Selecciona el tratamiento que deseas agendar hoy.</p>
 
-          <div className="grid grid-cols-1 gap-4">
-            {services.map((s) => (
-              <div
-                key={s.id}
-                onClick={() => setSelectedService(s)}
-                className={`p-5 rounded-2xl border-2 transition-all cursor-pointer flex justify-between items-center ${
-                  selectedService?.id === s.id
-                    ? 'border-rose-400 bg-rose-50/40 shadow-sm'
-                    : 'border-gray-100 hover:border-rose-200'
-                }`}
-              >
-                <div className="flex items-center gap-4">
-                  <span className="text-3xl">{s.image}</span>
-                  <div>
-                    <h3 className="font-medium text-gray-800">{s.name}</h3>
-                    <p className="text-xs text-gray-400 flex items-center gap-1 mt-1">
-                      <Clock className="w-3 h-3" /> {s.duration_minutes} min
-                    </p>
+          {loadingServices ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-3 text-rose-500">
+              <Loader2 className="w-8 h-8 animate-spin" />
+              <p className="text-sm font-medium text-gray-500">Cargando experiencias disponibles...</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4">
+              {services.map((s) => (
+                <div
+                  key={s.id}
+                  onClick={() => setSelectedService(s)}
+                  className={`p-5 rounded-2xl border-2 transition-all cursor-pointer flex justify-between items-center ${
+                    selectedService?.id === s.id
+                      ? 'border-rose-400 bg-rose-50/40 shadow-sm'
+                      : 'border-gray-100 hover:border-rose-200'
+                  }`}
+                >
+                  <div className="flex items-center gap-4">
+                    <span className="text-3xl">{s.icon || '✨'}</span>
+                    <div>
+                      <h3 className="font-medium text-gray-800">{s.name}</h3>
+                      {s.description && (
+                        <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{s.description}</p>
+                      )}
+                      <p className="text-xs text-gray-400 flex items-center gap-1 mt-1">
+                        <Clock className="w-3 h-3" /> {s.duration_minutes} min
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0 ml-3">
+                    <span className="text-lg font-bold text-rose-950">${Number(s.price).toLocaleString('es-AR')}</span>
+                    <p className="text-xs text-rose-500 font-medium">Seña: ${Number(s.deposit_amount).toLocaleString('es-AR')}</p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <span className="text-lg font-bold text-rose-950">${s.price.toLocaleString()}</span>
-                  <p className="text-xs text-rose-500 font-medium">Seña: ${s.deposit_amount.toLocaleString()}</p>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
 
           <button
-            disabled={!selectedService}
+            disabled={!selectedService || loadingServices}
             onClick={handleNextStep}
-            className="w-full py-4 bg-[#AB0F66] hover:bg-[#8F0C54] disabled:bg-gray-200 disabled:cursor-not-allowed text-white font-medium rounded-2xl shadow-lg shadow-rose-200/50 transition-all flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full py-4 bg-[#AB0F66] hover:bg-[#8F0C54] disabled:bg-gray-200 disabled:cursor-not-allowed text-white font-medium rounded-2xl shadow-lg shadow-rose-200/50 transition-all flex items-center justify-center gap-2 cursor-pointer mt-4"
           >
             Continuar <ArrowRight className="w-4 h-4" />
           </button>
         </div>
       )}
 
-      {/* Paso 2 */}
+      {/* Paso 2: Fecha y Hora */}
       {step === 2 && (
         <div className="space-y-6">
           <h2 className="font-serif text-2xl text-gray-800 font-semibold">Reserva tu Horario</h2>
@@ -194,7 +213,7 @@ export default function BookingWizard() {
         </div>
       )}
 
-      {/* Paso 3 */}
+      {/* Paso 3: Confirmación y Datos */}
       {step === 3 && (
         <form onSubmit={handleReserve} className="space-y-6">
           <h2 className="font-serif text-2xl text-gray-800 font-semibold">Tus Datos de Contacto</h2>
@@ -235,7 +254,7 @@ export default function BookingWizard() {
             </div>
             <div className="flex justify-between text-rose-700 font-bold border-t border-rose-200 pt-2 text-base">
               <span>Monto Seña para reservar:</span>
-              <span>${selectedService?.deposit_amount.toLocaleString()}</span>
+              <span>${Number(selectedService?.deposit_amount || 0).toLocaleString('es-AR')}</span>
             </div>
           </div>
 
@@ -246,14 +265,21 @@ export default function BookingWizard() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-2xl shadow-lg shadow-emerald-100 transition-all flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 disabled:bg-emerald-300 text-white font-medium rounded-2xl shadow-lg shadow-emerald-100 transition-all flex items-center justify-center gap-2 cursor-pointer"
           >
-            {loading ? 'Generando Reserva...' : 'Confirmar Reserva'}
+            {loading ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Generando Reserva...
+              </>
+            ) : (
+              'Confirmar Reserva'
+            )}
           </button>
         </form>
       )}
 
-      {/* Paso 4: Pantalla Final con Botones Directos */}
+      {/* Paso 4: Redirección manual opcional */}
       {step === 4 && (
         <div className="text-center space-y-6 py-4">
           <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
@@ -270,7 +296,7 @@ export default function BookingWizard() {
           <div className="p-4 bg-rose-50/60 rounded-2xl border border-rose-100 text-left text-sm space-y-1">
             <p><span className="text-gray-500">Servicio:</span> <strong>{selectedService?.name}</strong></p>
             <p><span className="text-gray-500">Fecha y hora:</span> <strong>{appointmentDate} a las {appointmentTime} hs</strong></p>
-            <p><span className="text-gray-500">Monto seña:</span> <strong className="text-rose-700">${selectedService?.deposit_amount.toLocaleString()}</strong></p>
+            <p><span className="text-gray-500">Monto seña:</span> <strong className="text-rose-700">${Number(selectedService?.deposit_amount || 0).toLocaleString('es-AR')}</strong></p>
           </div>
 
           <div className="space-y-3 pt-2">
