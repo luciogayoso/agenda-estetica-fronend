@@ -16,7 +16,7 @@ export default function BookingWizard() {
   const [loading, setLoading] = useState(false);
   const [paymentUrl, setPaymentUrl] = useState('');
 
-  // Cargar servicios desde Supabase mediante la API del backend
+  // 1. Cargar la lista actualizada de servicios desde Supabase vía Backend
   useEffect(() => {
     const fetchServices = async () => {
       try {
@@ -40,6 +40,7 @@ export default function BookingWizard() {
     else if (step === 2 && appointmentDate && appointmentTime) setStep(3);
   };
 
+  // 2. Procesar la reserva e integrar Mercado Pago
   const handleReserve = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -52,7 +53,6 @@ export default function BookingWizard() {
           client_name: clientName,
           client_phone: clientPhone,
           service_id: selectedService.id,
-          staff_id: 1,
           appointment_date: `${appointmentDate}T${appointmentTime}:00`
         })
       });
@@ -62,6 +62,12 @@ export default function BookingWizard() {
       if (data.status === 'success' && data.init_point) {
         confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
         setPaymentUrl(data.init_point);
+        
+        // Se establece el paso 4 por si la redirección del navegador es bloqueada
+        setStep(4);
+        setLoading(false);
+
+        // Redirigir directamente al link de pago de Mercado Pago
         window.location.href = data.init_point;
       } else {
         alert(data.message || 'Hubo un inconveniente al procesar la reserva.');
@@ -102,7 +108,7 @@ export default function BookingWizard() {
         </div>
       )}
 
-      {/* Paso 1: Selección de Servicios */}
+      {/* Paso 1: Selección de Servicios Dinámicos */}
       {step === 1 && (
         <div className="space-y-4">
           <h2 className="font-serif text-2xl text-gray-800 font-semibold mb-1">Elige tu experiencia</h2>
@@ -279,7 +285,7 @@ export default function BookingWizard() {
         </form>
       )}
 
-      {/* Paso 4: Redirección manual opcional */}
+      {/* Paso 4: Redirección manual / pantalla de respaldo */}
       {step === 4 && (
         <div className="text-center space-y-6 py-4">
           <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
