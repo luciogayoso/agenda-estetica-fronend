@@ -1,43 +1,61 @@
 import { useEffect, useState, useRef } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 
-// Agregamos fallback por si VITE_BACKEND_URL no está definido en las variables de entorno
+// Fallback por si VITE_BACKEND_URL no está definido en las variables de entorno
 const API_URL = import.meta.env.VITE_BACKEND_URL || 'https://agenda-estetica-backend.onrender.com';
 
 export default function ReservaExito() {
   const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [confirmed, setConfirmed] = useState(false);
-  const hasConfirmed = useRef(false); // Previene ejecuciones dobles en React 18 (StrictMode)
+  const hasConfirmed = useRef(false); // Evita ejecuciones dobles en React 18 / StrictMode
 
-  // Mercado Pago envía 'collection_status' o 'status'
+  // 1. Mercado Pago envía estos parámetros en la URL al redirigir
   const paymentStatus = searchParams.get('collection_status') || searchParams.get('status');
+  const paymentId = searchParams.get('payment_id') || searchParams.get('collection_id');
   
-  // Buscar ID de turno por external_reference o por la query personalizada appointment_id
+  // 2. ID de la reserva enviado desde nuestro backend en la URL de retorno
   const appointmentId = searchParams.get('external_reference') || searchParams.get('appointment_id');
 
   useEffect(() => {
     const confirmAppointment = async () => {
-      // Previene ejecuciones dobles
+      // Previene ejecuciones dobles en React
       if (hasConfirmed.current) return;
 
-      // Si el pago es aprobado o viene el ID del turno, llamamos al endpoint de respaldo
-      if (appointmentId && (paymentStatus === 'approved' || !paymentStatus)) {
+      // Si tenemos la ID de la reserva y el estado es 'approved' (o viene un payment_id)
+      if (appointmentId && (paymentStatus === 'approved' || paymentId || !paymentStatus)) {
         hasConfirmed.current = true;
+
         try {
-          const res = await fetch(`${API_URL}/api/appointments/confirm`, {
+          // Llamada al endpoint de verificación y confirmación
+          const res = await fetch(`${API_URL}/api/appointments/verify-and-confirm`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ appointment_id: appointmentId })
+            body: JSON.stringify({ 
+              appointment_id: appointmentId,
+              payment_id: paymentId
+            })
           });
 
           const data = await res.json();
 
           if (data.status === 'success') {
-            console.log('✅ Confirmación de turno registrada en el backend:', data);
+            console.log('✅ Reserva confirmada exitosamente en el servidor:', data);
             setConfirmed(true);
           } else {
-            console.warn('⚠️ El backend devolvió un estado no exitoso:', data);
+            console.warn('⚠️ Intento primario no exitoso, reintentando confirmación simple...', data);
+            
+            // Intento de respaldo simple si falla el verify-and-confirm
+            const fallbackRes = await fetch(`${API_URL}/api/appointments/confirm`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ appointment_id: appointmentId })
+            });
+            const fallbackData = await fallbackRes.json();
+            
+            if (fallbackData.status === 'success') {
+              setConfirmed(true);
+            }
           }
         } catch (error) {
           console.error('❌ Error al intentar confirmar el turno:', error);
@@ -50,7 +68,7 @@ export default function ReservaExito() {
     };
 
     confirmAppointment();
-  }, [paymentStatus, appointmentId]);
+  }, [paymentStatus, paymentId, appointmentId]);
 
   return (
     <div style={{ textAlign: 'center', padding: '50px 20px', fontFamily: 'sans-serif' }}>
@@ -60,7 +78,14 @@ export default function ReservaExito() {
           <p style={{ color: '#888', fontSize: '14px' }}>Por favor, aguarda un instante.</p>
         </div>
       ) : (
-        <div style={{ maxWidth: '500px', margin: '0 auto', background: '#f9f9f9', padding: '30px', borderRadius: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
+        <div style={{ 
+          maxWidth: '500px', 
+          margin: '0 auto', 
+          background: '#f9f9f9', 
+          padding: '30px', 
+          borderRadius: '16px', 
+          boxShadow: '0 4px 20px rgba(0,0,0,0.05)' 
+        }}>
           {confirmed || paymentStatus === 'approved' ? (
             <>
               <h1 style={{ color: '#2e7d32', fontSize: '24px', marginBottom: '10px' }}>¡Reserva Confirmada Exitosamente! 🎉</h1>
