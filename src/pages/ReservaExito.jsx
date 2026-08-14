@@ -1,46 +1,70 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 
-const API_URL = import.meta.env.VITE_BACKEND_URL;
+// Agregamos fallback por si VITE_BACKEND_URL no está en Vercel
+const API_URL = import.meta.env.VITE_BACKEND_URL || 'https://agenda-estetica-backend.onrender.com';
 
 export default function ReservaExito() {
   const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
+  const hasConfirmed = useRef(false); // Previene ejecuciones dobles en React 18
 
-  // Mercado Pago envía estos parámetros en la URL al volver
+  // Mercado Pago envía 'collection_status' o 'status'
   const paymentStatus = searchParams.get('collection_status') || searchParams.get('status');
-  const externalReference = searchParams.get('external_reference'); // Es el ID del turno
+  
+  // Buscar ID de turno por external_reference o por la query personalizada appointment_id
+  const appointmentId = searchParams.get('external_reference') || searchParams.get('appointment_id');
 
   useEffect(() => {
     const confirmAppointment = async () => {
-      // Si el pago está aprobado y tenemos el ID del turno
-      if (paymentStatus === 'approved' && externalReference) {
+      // Previene que React StrictMode dispare la llamada 2 veces
+      if (hasConfirmed.current) return;
+
+      if (paymentStatus === 'approved' && appointmentId) {
+        hasConfirmed.current = true;
         try {
-          await fetch(`${API_URL}/api/appointments/confirm-manual`, {
+          const res = await fetch(`${API_URL}/api/appointments/confirm-manual`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ appointment_id: externalReference })
+            body: JSON.stringify({ appointment_id: appointmentId })
           });
+          const data = await res.json();
+          console.log('✅ Confirmación manual completada:', data);
         } catch (error) {
-          console.error('Error confirmando el turno:', error);
+          console.error('❌ Error confirmando el turno:', error);
         }
       }
       setLoading(false);
     };
 
     confirmAppointment();
-  }, [paymentStatus, externalReference]);
+  }, [paymentStatus, appointmentId]);
 
   return (
-    <div style={{ textAlign: 'center', padding: '50px' }}>
+    <div style={{ textAlign: 'center', padding: '50px 20px', fontFamily: 'sans-serif' }}>
       {loading ? (
         <h2>Confirmando tu reserva... ⏳</h2>
       ) : (
-        <>
-          <h1>¡Reserva Confirmada Exitosamente! 🎉</h1>
-          <p>Tu pago ha sido procesado y tu turno quedó agendado.</p>
-          <Link to="/">Volver al Inicio</Link>
-        </>
+        <div style={{ maxWidth: '500px', margin: '0 auto', background: '#f9f9f9', padding: '30px', borderRadius: '12px' }}>
+          <h1 style={{ color: '#2e7d32' }}>¡Reserva Confirmada Exitosamente! 🎉</h1>
+          <p>Tu pago ha sido procesado y tu turno quedó agendado en el sistema.</p>
+          <div style={{ marginTop: '25px' }}>
+            <Link 
+              to="/" 
+              style={{
+                display: 'inline-block',
+                padding: '10px 20px',
+                backgroundColor: '#d81b60',
+                color: '#fff',
+                textDecoration: 'none',
+                borderRadius: '6px',
+                fontWeight: 'bold'
+              }}
+            >
+              Volver al Inicio
+            </Link>
+          </div>
+        </div>
       )}
     </div>
   );
