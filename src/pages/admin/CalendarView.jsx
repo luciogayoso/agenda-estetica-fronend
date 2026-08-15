@@ -1,34 +1,50 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, User, Clock, RefreshCw } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, User, Clock, RefreshCw, Lock, AlertCircle } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_BACKEND_URL;
+
+const DAYS_MAP = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
 export default function CalendarView() {
   // Fecha actual seleccionada (formato YYYY-MM-DD)
   const [selectedDate, setSelectedDate] = useState(() => {
     return new Date().toISOString().split('T')[0];
   });
+  
   const [appointments, setAppointments] = useState([]);
+  const [blockedDates, setBlockedDates] = useState([]);
+  const [blockedSlots, setBlockedSlots] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Obtener turnos reales desde la base de datos
-  const fetchAppointments = async () => {
+  // Obtener turnos reales y bloqueos desde el backend
+  const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/appointments`);
-      const data = await res.json();
-      if (data.status === 'success') {
-        setAppointments(data.data || []);
+      const [resApp, resBlocks] = await Promise.all([
+        fetch(`${API_URL}/api/appointments`),
+        fetch(`${API_URL}/api/schedules/blocks`)
+      ]);
+
+      const dataApp = await resApp.json();
+      const dataBlocks = await resBlocks.json();
+
+      if (dataApp.status === 'success') {
+        setAppointments(dataApp.data || []);
+      }
+
+      if (dataBlocks.status === 'success') {
+        setBlockedDates(dataBlocks.blockedDates || []);
+        setBlockedSlots(dataBlocks.blockedSlots || []);
       }
     } catch (err) {
-      console.error('Error al cargar turnos del calendario:', err);
+      console.error('Error al cargar datos del calendario:', err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchAppointments();
+    fetchData();
   }, []);
 
   // Navegar días (+1 o -1)
@@ -39,12 +55,31 @@ export default function CalendarView() {
   };
 
   // Formatear texto de la fecha
-  const formattedHeaderDate = new Date(`${selectedDate}T00:00:00`).toLocaleDateString('es-AR', {
+  const dateObj = new Date(`${selectedDate}T00:00:00`);
+  const formattedHeaderDate = dateObj.toLocaleDateString('es-AR', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
     year: 'numeric'
   });
+
+  const currentDayName = DAYS_MAP[dateObj.getDay()];
+
+  // Función para saber si el día seleccionado está bloqueado
+  const isDateBlocked = blockedDates.some((bd) => bd.date === selectedDate);
+
+  // Función para saber si un horario en el día actual cae en una franja bloqueada
+  const isSlotBlocked = (hour) => {
+    const daySlots = blockedSlots.filter(
+      (slot) => (slot.day || '').toLowerCase() === currentDayName.toLowerCase()
+    );
+
+    return daySlots.some((slot) => {
+      const start = slot.start_time || slot.startTime;
+      const end = slot.end_time || slot.endTime;
+      return hour >= start && hour < end;
+    });
+  };
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6 w-full">
@@ -81,7 +116,7 @@ export default function CalendarView() {
           </button>
 
           <button 
-            onClick={fetchAppointments}
+            onClick={fetchData}
             className="ml-2 p-1.5 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 cursor-pointer transition-colors"
             title="Actualizar"
           >
@@ -89,6 +124,14 @@ export default function CalendarView() {
           </button>
         </div>
       </div>
+
+      {/* Alerta de Día Completo Bloqueado */}
+      {isDateBlocked && (
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-3 text-rose-800 text-xs font-semibold">
+          <AlertCircle className="w-5 h-5 text-rose-600 flex-shrink-0" />
+          <span>Este día ha sido bloqueado manualmente (Feriado, Franco o Cierre Completo). No se admiten nuevos turnos.</span>
+        </div>
+      )}
 
       {/* Franja Horaria Visual */}
       <div className="bg-white p-6 rounded-3xl border border-rose-100 shadow-sm space-y-3">
@@ -110,6 +153,9 @@ export default function CalendarView() {
 
               return isSameDate && isSameHour;
             });
+
+            // Comprobar si la franja específica está bloqueada
+            const slotBlocked = isDateBlocked || isSlotBlocked(hour);
 
             return (
               <div key={hour} className="flex items-start gap-4 py-2 border-b border-slate-50 text-xs">
@@ -146,6 +192,11 @@ export default function CalendarView() {
                         </span>
                       </div>
                     ))
+                  ) : slotBlocked ? (
+                    <div className="h-9 bg-slate-100 border border-slate-200 rounded-xl flex items-center px-3 text-slate-400 text-[11px] font-semibold gap-1.5 select-none">
+                      <Lock className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Bloqueado / No disponible</span>
+                    </div>
                   ) : (
                     <div className="h-9 border border-dashed border-slate-200 rounded-xl flex items-center px-3 text-slate-300 text-[11px]">
                       Disponible

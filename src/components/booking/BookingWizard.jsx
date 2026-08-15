@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, User, ArrowRight, ShieldCheck, CheckCircle2, MessageCircle, CreditCard, Loader2 } from 'lucide-react';
+import { Clock, User, ArrowRight, ShieldCheck, CheckCircle2, MessageCircle, CreditCard, Loader2, AlertCircle } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 const API_BASE = import.meta.env.VITE_BACKEND_URL || 'https://agenda-estetica-backend.onrender.com';
@@ -16,15 +16,20 @@ export default function BookingWizard() {
   const [loading, setLoading] = useState(false);
   const [paymentUrl, setPaymentUrl] = useState('');
 
-  // 1. Cargar la lista actualizada de servicios desde Supabase vía Backend
+  // 1. Cargar la lista de servicios desde la Base de Datos
   useEffect(() => {
     const fetchServices = async () => {
       try {
         const response = await fetch(`${API_BASE}/api/services`);
-        const data = await response.json();
-        if (Array.isArray(data)) {
-          setServices(data);
-        }
+        const result = await response.json();
+
+        // Soporta respuesta directa en Array o envuelta en { data: [...] }
+        const rawList = Array.isArray(result) ? result : (result.data || []);
+        
+        // Filtrar servicios activos si el campo existe
+        const activeServices = rawList.filter(s => s.is_active !== false && s.active !== false);
+        
+        setServices(activeServices);
       } catch (err) {
         console.error('Error al cargar la lista de servicios:', err);
       } finally {
@@ -62,12 +67,10 @@ export default function BookingWizard() {
       if (data.status === 'success' && data.init_point) {
         confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
         setPaymentUrl(data.init_point);
-        
-        // Se establece el paso 4 por si la redirección del navegador es bloqueada
         setStep(4);
         setLoading(false);
 
-        // Redirigir directamente al link de pago de Mercado Pago
+        // Redirección directa al checkout de Mercado Pago
         window.location.href = data.init_point;
       } else {
         alert(data.message || 'Hubo un inconveniente al procesar la reserva.');
@@ -108,7 +111,7 @@ export default function BookingWizard() {
         </div>
       )}
 
-      {/* Paso 1: Selección de Servicios Dinámicos */}
+      {/* Paso 1: Selección de Servicios Dinámicos desde la BD */}
       {step === 1 && (
         <div className="space-y-4">
           <h2 className="font-serif text-2xl text-gray-800 font-semibold mb-1">Elige tu experiencia</h2>
@@ -117,7 +120,12 @@ export default function BookingWizard() {
           {loadingServices ? (
             <div className="flex flex-col items-center justify-center py-12 gap-3 text-rose-500">
               <Loader2 className="w-8 h-8 animate-spin" />
-              <p className="text-sm font-medium text-gray-500">Cargando experiencias disponibles...</p>
+              <p className="text-sm font-medium text-gray-500">Cargando catálogo de servicios...</p>
+            </div>
+          ) : services.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-500 gap-2">
+              <AlertCircle className="w-8 h-8 text-slate-400" />
+              <p className="text-sm font-medium">No hay servicios disponibles en este momento.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4">
@@ -136,16 +144,16 @@ export default function BookingWizard() {
                     <div>
                       <h3 className="font-medium text-gray-800">{s.name}</h3>
                       {s.description && (
-                        <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{s.description}</p>
+                        <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{s.description}</p>
                       )}
                       <p className="text-xs text-gray-400 flex items-center gap-1 mt-1">
-                        <Clock className="w-3 h-3" /> {s.duration_minutes} min
+                        <Clock className="w-3 h-3" /> {s.duration_minutes || s.duration || 30} min
                       </p>
                     </div>
                   </div>
                   <div className="text-right flex-shrink-0 ml-3">
-                    <span className="text-lg font-bold text-rose-950">${Number(s.price).toLocaleString('es-AR')}</span>
-                    <p className="text-xs text-rose-500 font-medium">Seña: ${Number(s.deposit_amount).toLocaleString('es-AR')}</p>
+                    <span className="text-lg font-bold text-rose-950">${Number(s.price || 0).toLocaleString('es-AR')}</span>
+                    <p className="text-xs text-rose-500 font-medium">Seña: ${Number(s.deposit_amount || s.deposit || 0).toLocaleString('es-AR')}</p>
                   </div>
                 </div>
               ))}
@@ -260,7 +268,7 @@ export default function BookingWizard() {
             </div>
             <div className="flex justify-between text-rose-700 font-bold border-t border-rose-200 pt-2 text-base">
               <span>Monto Seña para reservar:</span>
-              <span>${Number(selectedService?.deposit_amount || 0).toLocaleString('es-AR')}</span>
+              <span>${Number(selectedService?.deposit_amount || selectedService?.deposit || 0).toLocaleString('es-AR')}</span>
             </div>
           </div>
 
@@ -302,7 +310,7 @@ export default function BookingWizard() {
           <div className="p-4 bg-rose-50/60 rounded-2xl border border-rose-100 text-left text-sm space-y-1">
             <p><span className="text-gray-500">Servicio:</span> <strong>{selectedService?.name}</strong></p>
             <p><span className="text-gray-500">Fecha y hora:</span> <strong>{appointmentDate} a las {appointmentTime} hs</strong></p>
-            <p><span className="text-gray-500">Monto seña:</span> <strong className="text-rose-700">${Number(selectedService?.deposit_amount || 0).toLocaleString('es-AR')}</strong></p>
+            <p><span className="text-gray-500">Monto seña:</span> <strong className="text-rose-700">${Number(selectedService?.deposit_amount || selectedService?.deposit || 0).toLocaleString('es-AR')}</strong></p>
           </div>
 
           <div className="space-y-3 pt-2">

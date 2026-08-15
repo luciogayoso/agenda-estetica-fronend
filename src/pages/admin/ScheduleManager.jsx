@@ -1,18 +1,13 @@
-import React, { useState } from 'react';
-import { CalendarX, Clock, Plus, Trash2, ShieldAlert } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { CalendarX, Clock, Plus, Trash2, ShieldAlert, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-export default function ScheduleManager() {
-  // Días completos bloqueados
-  const [blockedDates, setBlockedDates] = useState([
-    { id: 1, date: '2026-12-25', reason: 'Navidad' },
-    { id: 2, date: '2026-01-01', reason: 'Año Nuevo' }
-  ]);
+const API_URL = import.meta.env.VITE_BACKEND_URL || 'https://agenda-estetica-backend.onrender.com';
 
-  // Franjas horarias bloqueadas
-  const [blockedSlots, setBlockedSlots] = useState([
-    { id: 1, day: 'Lunes', startTime: '13:00', endTime: '14:00', reason: 'Almuerzo' }
-  ]);
+export default function ScheduleManager() {
+  const [blockedDates, setBlockedDates] = useState([]);
+  const [blockedSlots, setBlockedSlots] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   // Estado para el formulario de Días
   const [newDate, setNewDate] = useState('');
@@ -24,47 +19,119 @@ export default function ScheduleManager() {
   const [endTime, setEndTime] = useState('');
   const [slotReason, setSlotReason] = useState('');
 
-  // Handlers para Días
-  const handleAddBlockedDate = (e) => {
-  e.preventDefault();
-  if (!newDate) return;
-  setBlockedDates([
-    ...blockedDates,
-    { id: Date.now(), date: newDate, reason: dateReason || 'Día Bloqueado' }
-  ]);
-  setNewDate('');
-  setDateReason('');
-  toast.success('Día bloqueado con éxito', {
-    iconTheme: { primary: '#AB0F66', secondary: '#fff' }
-  });
-};
+  // Cargar datos al montar el componente
+  useEffect(() => {
+    fetchBlocks();
+  }, []);
 
-  const handleDeleteDate = (id) => {
-    setBlockedDates(blockedDates.filter((item) => item.id !== id));
+  const fetchBlocks = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch(`${API_URL}/api/schedules/blocks`);
+      const data = await res.json();
+      if (data.status === 'success') {
+        setBlockedDates(data.blockedDates);
+        setBlockedSlots(data.blockedSlots);
+      }
+    } catch (error) {
+      toast.error('Error al obtener los bloqueos del servidor');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Handlers para Franjas Horarias
-  const handleAddBlockedSlot = (e) => {
+  // Handlers para Días Bloqueados
+  const handleAddBlockedDate = async (e) => {
+    e.preventDefault();
+    if (!newDate) return;
+
+    try {
+      const res = await fetch(`${API_URL}/api/schedules/blocked-dates`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: newDate, reason: dateReason })
+      });
+      const data = await res.json();
+
+      if (data.status === 'success') {
+        setBlockedDates([...blockedDates, data.data]);
+        setNewDate('');
+        setDateReason('');
+        toast.success('Día bloqueado con éxito');
+      } else {
+        toast.error('No se pudo guardar el día');
+      }
+    } catch (error) {
+      toast.error('Error de conexión al guardar el día');
+    }
+  };
+
+  const handleDeleteDate = async (id) => {
+    try {
+      const res = await fetch(`${API_URL}/api/schedules/blocked-dates/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.status === 'success') {
+        setBlockedDates(blockedDates.filter((item) => item.id !== id));
+        toast.success('Bloqueo eliminado');
+      }
+    } catch (error) {
+      toast.error('Error al eliminar el día');
+    }
+  };
+
+  // Handlers para Franjas Horarias Bloqueadas
+  const handleAddBlockedSlot = async (e) => {
     e.preventDefault();
     if (!startTime || !endTime) return;
-    setBlockedSlots([
-      ...blockedSlots,
-      {
-        id: Date.now(),
-        day: slotDay,
-        startTime,
-        endTime,
-        reason: slotReason || 'Pausa Programada'
+
+    try {
+      const res = await fetch(`${API_URL}/api/schedules/blocked-slots`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          day: slotDay,
+          startTime,
+          endTime,
+          reason: slotReason
+        })
+      });
+      const data = await res.json();
+
+      if (data.status === 'success') {
+        setBlockedSlots([...blockedSlots, data.data]);
+        setStartTime('');
+        setEndTime('');
+        setSlotReason('');
+        toast.success('Franja horaria bloqueada con éxito');
+      } else {
+        toast.error('No se pudo guardar la franja horaria');
       }
-    ]);
-    setStartTime('');
-    setEndTime('');
-    setSlotReason('');
+    } catch (error) {
+      toast.error('Error de conexión al guardar la franja');
+    }
   };
 
-  const handleDeleteSlot = (id) => {
-    setBlockedSlots(blockedSlots.filter((slot) => slot.id !== id));
+  const handleDeleteSlot = async (id) => {
+    try {
+      const res = await fetch(`${API_URL}/api/schedules/blocked-slots/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.status === 'success') {
+        setBlockedSlots(blockedSlots.filter((slot) => slot.id !== id));
+        toast.success('Franja horaria eliminada');
+      }
+    } catch (error) {
+      toast.error('Error al eliminar la franja');
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 space-y-2">
+        <Loader2 className="w-8 h-8 animate-spin text-[#AB0F66]" />
+        <p className="text-xs text-slate-500">Cargando configuraciones de horario...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-8 w-full">
@@ -116,20 +183,24 @@ export default function ScheduleManager() {
 
           <div className="pt-4 border-t border-slate-100 space-y-2">
             <span className="text-xs font-bold text-slate-500">Días Inhabilitados</span>
-            {blockedDates.map((item) => (
-              <div key={item.id} className="flex justify-between items-center p-2.5 bg-rose-50/50 rounded-xl border border-rose-100 text-xs">
-                <div>
-                  <p className="font-bold text-slate-700">{item.date}</p>
-                  <p className="text-[10px] text-slate-400">{item.reason}</p>
+            {blockedDates.length === 0 ? (
+              <p className="text-[11px] text-slate-400 italic">No hay días bloqueados.</p>
+            ) : (
+              blockedDates.map((item) => (
+                <div key={item.id} className="flex justify-between items-center p-2.5 bg-rose-50/50 rounded-xl border border-rose-100 text-xs">
+                  <div>
+                    <p className="font-bold text-slate-700">{item.date}</p>
+                    <p className="text-[10px] text-slate-400">{item.reason}</p>
+                  </div>
+                  <button
+                    onClick={() => handleDeleteDate(item.id)}
+                    className="text-rose-500 hover:text-rose-700 p-1 cursor-pointer"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
-                <button
-                  onClick={() => handleDeleteDate(item.id)}
-                  className="text-rose-500 hover:text-rose-700 p-1 cursor-pointer"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 
@@ -201,21 +272,25 @@ export default function ScheduleManager() {
 
           <div className="pt-4 border-t border-slate-100 space-y-2">
             <span className="text-xs font-bold text-slate-500">Horarios Inhabilitados</span>
-            {blockedSlots.map((slot) => (
-              <div key={slot.id} className="flex justify-between items-center p-2.5 bg-slate-50 rounded-xl border border-slate-100 text-xs">
-                <div>
-                  <span className="font-bold text-[#AB0F66]">{slot.day}: </span>
-                  <span className="font-medium text-slate-700">{slot.startTime} - {slot.endTime}</span>
-                  <p className="text-[10px] text-slate-400">{slot.reason}</p>
+            {blockedSlots.length === 0 ? (
+              <p className="text-[11px] text-slate-400 italic">No hay franjas bloqueadas.</p>
+            ) : (
+              blockedSlots.map((slot) => (
+                <div key={slot.id} className="flex justify-between items-center p-2.5 bg-slate-50 rounded-xl border border-slate-100 text-xs">
+                  <div>
+                    <span className="font-bold text-[#AB0F66]">{slot.day}: </span>
+                    <span className="font-medium text-slate-700">{slot.start_time || slot.startTime} - {slot.end_time || slot.endTime}</span>
+                    <p className="text-[10px] text-slate-400">{slot.reason}</p>
+                  </div>
+                  <button
+                    onClick={() => handleDeleteSlot(slot.id)}
+                    className="text-rose-500 hover:text-rose-700 p-1 cursor-pointer"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
-                <button
-                  onClick={() => handleDeleteSlot(slot.id)}
-                  className="text-rose-500 hover:text-rose-700 p-1 cursor-pointer"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </div>
