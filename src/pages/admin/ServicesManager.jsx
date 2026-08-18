@@ -22,6 +22,7 @@ export default function ServicesManager() {
     fetchData();
   }, []);
 
+  // Carga normalizada de servicios y profesionales desde la base de datos
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -33,14 +34,20 @@ export default function ServicesManager() {
       const dataServices = await resServices.json();
       const dataProfs = await resProfs.json();
 
-      if (dataServices.status === 'success') {
-        setServices(dataServices.services);
-      }
-      if (dataProfs.status === 'success') {
-        setProfessionalsList(dataProfs.professionals);
-      }
+      // Extracción adaptable de los arreglos según la estructura de respuesta de la API
+      const servicesArray = Array.isArray(dataServices) 
+        ? dataServices 
+        : (dataServices.services || dataServices.data || []);
+
+      const profsArray = Array.isArray(dataProfs) 
+        ? dataProfs 
+        : (dataProfs.professionals || dataProfs.data || []);
+
+      setServices(servicesArray);
+      setProfessionalsList(profsArray);
     } catch (error) {
-      toast.error('Error al obtener la información de servicios y profesionales');
+      console.error('Error fetching data:', error);
+      toast.error('Error al obtener la información de la base de datos');
     } finally {
       setLoading(false);
     }
@@ -66,10 +73,10 @@ export default function ServicesManager() {
   const handleEdit = (service) => {
     setEditingId(service.id);
     setFormData({
-      name: service.name,
-      duration: service.duration,
-      price: service.price,
-      deposit: service.deposit,
+      name: service.name || '',
+      duration: service.duration_minutes || service.duration || '',
+      price: service.price || '',
+      deposit: service.deposit_amount || service.deposit || '',
       selectedProfessionals: service.professionals ? service.professionals.map((p) => p.id) : []
     });
   };
@@ -79,6 +86,7 @@ export default function ServicesManager() {
     setFormData({ name: '', duration: '', price: '', deposit: '', selectedProfessionals: [] });
   };
 
+  // Actualizar servicio en la Base de Datos
   const handleSave = async (id) => {
     try {
       const res = await fetch(`${API_URL}/api/services/${id}`, {
@@ -86,15 +94,15 @@ export default function ServicesManager() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: formData.name,
-          duration: formData.duration,
-          price: formData.price,
-          deposit: formData.deposit,
+          duration: Number(formData.duration),
+          price: Number(formData.price),
+          deposit: Number(formData.deposit),
           professionalIds: formData.selectedProfessionals
         })
       });
 
       const data = await res.json();
-      if (data.status === 'success') {
+      if (res.ok || data.status === 'success') {
         toast.success('Servicio actualizado correctamente', {
           iconTheme: { primary: '#AB0F66', secondary: '#fff' }
         });
@@ -102,26 +110,35 @@ export default function ServicesManager() {
         setFormData({ name: '', duration: '', price: '', deposit: '', selectedProfessionals: [] });
         fetchData();
       } else {
-        toast.error('No se pudo actualizar el servicio');
+        toast.error(data.message || 'No se pudo actualizar el servicio');
       }
     } catch (error) {
-      toast.error('Error de conexión al actualizar');
+      console.error('Error al guardar:', error);
+      toast.error('Error de conexión al actualizar el servicio');
     }
   };
 
+  // Eliminar servicio de la Base de Datos
   const handleDelete = async (id) => {
+    if (!window.confirm('¿Estás seguro de que deseas eliminar este servicio?')) return;
+
     try {
       const res = await fetch(`${API_URL}/api/services/${id}`, { method: 'DELETE' });
       const data = await res.json();
-      if (data.status === 'success') {
-        toast.error('Servicio eliminado');
+
+      if (res.ok || data.status === 'success') {
+        toast.success('Servicio eliminado correctamente');
         fetchData();
+      } else {
+        toast.error(data.message || 'No se pudo eliminar el servicio');
       }
     } catch (error) {
-      toast.error('Error al eliminar el servicio');
+      console.error('Error al eliminar:', error);
+      toast.error('Error al intentar eliminar el servicio');
     }
   };
 
+  // Crear servicio en la Base de Datos
   const handleAdd = async (e) => {
     e.preventDefault();
     if (!formData.name) return;
@@ -132,24 +149,25 @@ export default function ServicesManager() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: formData.name,
-          duration: formData.duration,
-          price: formData.price,
-          deposit: formData.deposit,
+          duration: Number(formData.duration),
+          price: Number(formData.price),
+          deposit: Number(formData.deposit),
           professionalIds: formData.selectedProfessionals
         })
       });
 
       const data = await res.json();
-      if (data.status === 'success') {
+      if (res.ok || data.status === 'success') {
         toast.success('¡Servicio agregado con éxito!', {
           iconTheme: { primary: '#AB0F66', secondary: '#fff' }
         });
         setFormData({ name: '', duration: '', price: '', deposit: '', selectedProfessionals: [] });
         fetchData();
       } else {
-        toast.error('Error al crear el servicio');
+        toast.error(data.message || 'Error al crear el servicio');
       }
     } catch (error) {
+      console.error('Error al agregar:', error);
       toast.error('Error de conexión al guardar el servicio');
     }
   };
@@ -330,13 +348,13 @@ export default function ServicesManager() {
                   <div className="flex justify-end gap-2 pt-2">
                     <button
                       onClick={() => handleSave(item.id)}
-                      className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl flex items-center gap-1 font-bold"
+                      className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl flex items-center gap-1 font-bold cursor-pointer"
                     >
                       <Check className="w-4 h-4" /> Guardar Cambios
                     </button>
                     <button
                       onClick={handleCancelEdit}
-                      className="px-3 py-1.5 bg-slate-300 hover:bg-slate-400 text-slate-700 rounded-xl flex items-center gap-1 font-bold"
+                      className="px-3 py-1.5 bg-slate-300 hover:bg-slate-400 text-slate-700 rounded-xl flex items-center gap-1 font-bold cursor-pointer"
                     >
                       <X className="w-4 h-4" /> Cancelar
                     </button>
@@ -348,12 +366,14 @@ export default function ServicesManager() {
                     <p className="font-bold text-slate-800 text-sm">{item.name}</p>
                     <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-500">
                       <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3 text-[#AB0F66]" /> {item.duration} min
+                        <Clock className="w-3 h-3 text-[#AB0F66]" /> {item.duration_minutes || item.duration || 0} min
                       </span>
                       <span className="flex items-center gap-1">
-                        <DollarSign className="w-3 h-3 text-emerald-500" /> Precio: ${item.price}
+                        <DollarSign className="w-3 h-3 text-emerald-500" /> Precio: ${Number(item.price || 0).toLocaleString('es-AR')}
                       </span>
-                      <span className="text-rose-600 font-semibold">Seña: ${item.deposit}</span>
+                      <span className="text-rose-600 font-semibold">
+                        Seña: ${Number(item.deposit_amount || item.deposit || 0).toLocaleString('es-AR')}
+                      </span>
                     </div>
 
                     {/* Badge de Profesionales asignados */}
@@ -379,13 +399,15 @@ export default function ServicesManager() {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleEdit(item)}
-                      className="p-1.5 text-slate-500 hover:text-[#AB0F66] cursor-pointer"
+                      className="p-1.5 text-slate-500 hover:text-[#AB0F66] cursor-pointer transition-colors"
+                      title="Editar Servicio"
                     >
                       <Edit2 className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => handleDelete(item.id)}
-                      className="p-1.5 text-rose-500 hover:text-rose-700 cursor-pointer"
+                      className="p-1.5 text-rose-500 hover:text-rose-700 cursor-pointer transition-colors"
+                      title="Eliminar Servicio"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
