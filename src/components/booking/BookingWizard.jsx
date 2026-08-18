@@ -4,10 +4,26 @@ import {
   CreditCard, Loader2, AlertCircle, Calendar, Search, CalendarDays, LogOut 
 } from 'lucide-react';
 import { GoogleLogin, googleLogout } from '@react-oauth/google';
-import { jwtDecode } from 'jwt-decode';
 import confetti from 'canvas-confetti';
 
 const API_BASE = import.meta.env.VITE_BACKEND_URL || 'https://agenda-estetica-backend.onrender.com';
+
+function parseJwt(token) {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    console.error('Error parseando JWT:', e);
+    return null;
+  }
+}
 
 export default function BookingWizard() {
   // Pestaña activa ('reserve' | 'my_appointments')
@@ -36,23 +52,25 @@ export default function BookingWizard() {
   const [loadingSearch, setLoadingSearch] = useState(false);
 
   // Guardar/limpiar sesión en localStorage
-  const handleGoogleSuccess = (credentialResponse) => {
-    try {
-      const decoded = jwtDecode(credentialResponse.credential);
-      const userData = {
-        name: decoded.name,
-        email: decoded.email,
-        picture: decoded.picture,
-        sub: decoded.sub
-      };
-      setUser(userData);
-      localStorage.setItem('google_user', JSON.stringify(userData));
+ const handleGoogleSuccess = (credentialResponse) => {
+  try {
+    const decoded = parseJwt(credentialResponse.credential);
+    if (!decoded) return;
 
-      if (!clientName) setClientName(userData.name);
-    } catch (error) {
-      console.error('Error al decodificar token de Google:', error);
-    }
-  };
+    const userData = {
+      name: decoded.name,
+      email: decoded.email,
+      picture: decoded.picture,
+      sub: decoded.sub
+    };
+    setUser(userData);
+    localStorage.setItem('google_user', JSON.stringify(userData));
+
+    if (!clientName) setClientName(userData.name);
+  } catch (error) {
+    console.error('Error al decodificar token de Google:', error);
+  }
+};
 
   const handleLogout = () => {
     googleLogout();
