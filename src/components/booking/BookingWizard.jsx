@@ -25,6 +25,7 @@ function parseJwt(token) {
   }
 }
 
+
 export default function BookingWizard() {
   // Pestaña activa ('reserve' | 'my_appointments')
   const [activeTab, setActiveTab] = useState('reserve');
