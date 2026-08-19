@@ -25,18 +25,14 @@ function parseJwt(token) {
   }
 }
 
-
 export default function BookingWizard() {
-  // Pestaña activa ('reserve' | 'my_appointments')
   const [activeTab, setActiveTab] = useState('reserve');
 
-  // Estado del usuario autenticado con Google
   const [user, setUser] = useState(() => {
     const savedUser = localStorage.getItem('google_user');
     return savedUser ? JSON.parse(savedUser) : null;
   });
 
-  // Estados del BookingWizard
   const [step, setStep] = useState(1);
   const [services, setServices] = useState([]);
   const [loadingServices, setLoadingServices] = useState(true);
@@ -48,30 +44,34 @@ export default function BookingWizard() {
   const [loading, setLoading] = useState(false);
   const [paymentUrl, setPaymentUrl] = useState('');
 
-  // Estados de Mis Turnos
   const [appointments, setAppointments] = useState([]);
   const [loadingSearch, setLoadingSearch] = useState(false);
 
-  // Guardar/limpiar sesión en localStorage
- const handleGoogleSuccess = (credentialResponse) => {
-  try {
-    const decoded = parseJwt(credentialResponse.credential);
-    if (!decoded) return;
+  // Mantener actualizado el nombre cuando se inicia sesión
+  useEffect(() => {
+    if (user?.name && !clientName) {
+      setClientName(user.name);
+    }
+  }, [user]);
 
-    const userData = {
-      name: decoded.name,
-      email: decoded.email,
-      picture: decoded.picture,
-      sub: decoded.sub
-    };
-    setUser(userData);
-    localStorage.setItem('google_user', JSON.stringify(userData));
+  const handleGoogleSuccess = (credentialResponse) => {
+    try {
+      const decoded = parseJwt(credentialResponse.credential);
+      if (!decoded) return;
 
-    if (!clientName) setClientName(userData.name);
-  } catch (error) {
-    console.error('Error al decodificar token de Google:', error);
-  }
-};
+      const userData = {
+        name: decoded.name,
+        email: decoded.email,
+        picture: decoded.picture,
+        sub: decoded.sub
+      };
+      setUser(userData);
+      localStorage.setItem('google_user', JSON.stringify(userData));
+      setClientName(userData.name);
+    } catch (error) {
+      console.error('Error al decodificar token de Google:', error);
+    }
+  };
 
   const handleLogout = () => {
     googleLogout();
@@ -80,7 +80,6 @@ export default function BookingWizard() {
     setAppointments([]);
   };
 
-  // Cargar lista de servicios
   useEffect(() => {
     const fetchServices = async () => {
       try {
@@ -98,7 +97,6 @@ export default function BookingWizard() {
     fetchServices();
   }, []);
 
-  // Cargar automáticamente los turnos cuando el usuario cambie a la pestaña "Mis Turnos" y esté logueado
   useEffect(() => {
     if (activeTab === 'my_appointments' && user?.email) {
       fetchUserAppointments(user.email);
@@ -123,15 +121,14 @@ export default function BookingWizard() {
     }
   };
 
-  // Manejo de pasos en la reserva
   const handleNextStep = () => {
     if (step === 1 && selectedService) setStep(2);
     else if (step === 2 && appointmentDate && appointmentTime) setStep(3);
   };
 
-  // Procesar reserva
   const handleReserve = async (e) => {
     e.preventDefault();
+    if (!user) return; // Bloqueo de seguridad si no hay usuario
     setLoading(true);
 
     try {
@@ -355,59 +352,103 @@ export default function BookingWizard() {
             </div>
           )}
 
-          {/* Paso 3: Datos de Contacto */}
+          {/* Paso 3: Identificación (Google) y Datos de Contacto */}
           {step === 3 && (
-            <form onSubmit={handleReserve} className="space-y-6">
-              <h2 className="font-serif text-2xl text-gray-800 font-semibold">Tus Datos de Contacto</h2>
+            <div className="space-y-6">
+              {!user ? (
+                /* Muestra el botón de inicio de sesión si el cliente no está autenticado */
+                <div className="text-center py-6 space-y-5 bg-rose-50/40 p-6 rounded-2xl border border-rose-100">
+                  <div className="w-12 h-12 bg-rose-100 text-[#AB0F66] rounded-full flex items-center justify-center mx-auto">
+                    <User className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h2 className="font-serif text-xl font-bold text-gray-800 mb-1">Inicia sesión para continuar</h2>
+                    <p className="text-xs text-gray-500">
+                      Inicia sesión con Google para asociar tu turno a tu cuenta.
+                    </p>
+                  </div>
 
-              <div className="space-y-4">
-                <div>
-                  <label className="text-xs font-semibold uppercase tracking-wider text-gray-500">Nombre Completo</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ej. María García"
-                    value={clientName}
-                    onChange={(e) => setClientName(e.target.value)}
-                    className="w-full mt-1 p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-rose-400"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold uppercase tracking-wider text-gray-500">WhatsApp</label>
-                  <input
-                    type="tel"
-                    required
-                    placeholder="Ej. 1112345678"
-                    value={clientPhone}
-                    onChange={(e) => setClientPhone(e.target.value)}
-                    className="w-full mt-1 p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-rose-400"
-                  />
-                </div>
-              </div>
+                  <div className="flex justify-center pt-2">
+                    <GoogleLogin
+                      onSuccess={handleGoogleSuccess}
+                      onError={() => console.error('Error de autenticación con Google')}
+                      shape="pill"
+                      theme="outline"
+                      locale="es_AR"
+                    />
+                  </div>
 
-              <div className="p-4 bg-rose-50/60 rounded-2xl border border-rose-100 space-y-2 text-sm">
-                <div className="flex justify-between text-gray-600">
-                  <span>Servicio:</span>
-                  <span className="font-medium text-gray-800">{selectedService?.name}</span>
+                  <button
+                    onClick={() => setStep(2)}
+                    className="w-full py-3 bg-gray-100 text-gray-600 rounded-xl font-medium cursor-pointer text-xs"
+                  >
+                    Volver a elegir fecha
+                  </button>
                 </div>
-                <div className="flex justify-between text-gray-600">
-                  <span>Fecha y Hora:</span>
-                  <span className="font-medium text-gray-800">{appointmentDate} a las {appointmentTime} hs</span>
-                </div>
-                <div className="flex justify-between text-rose-700 font-bold border-t border-rose-200 pt-2 text-base">
-                  <span>Monto Seña a pagar:</span>
-                  <span>${Number(selectedService?.deposit_amount || selectedService?.deposit || 0).toLocaleString('es-AR')}</span>
-                </div>
-              </div>
+              ) : (
+                /* Muestra el formulario si ya está logueado */
+                <form onSubmit={handleReserve} className="space-y-6">
+                  <h2 className="font-serif text-2xl text-gray-800 font-semibold">Tus Datos de Contacto</h2>
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 disabled:bg-emerald-300 text-white font-medium rounded-2xl shadow-lg shadow-emerald-100 transition-all flex items-center justify-center gap-2 cursor-pointer"
-              >
-                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Confirmar Reserva'}
-              </button>
-            </form>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-xs font-semibold uppercase tracking-wider text-gray-500">Nombre Completo</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Ej. María García"
+                        value={clientName}
+                        onChange={(e) => setClientName(e.target.value)}
+                        className="w-full mt-1 p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-rose-400"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold uppercase tracking-wider text-gray-500">WhatsApp</label>
+                      <input
+                        type="tel"
+                        required
+                        placeholder="Ej. 1112345678"
+                        value={clientPhone}
+                        onChange={(e) => setClientPhone(e.target.value)}
+                        className="w-full mt-1 p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-rose-400"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-rose-50/60 rounded-2xl border border-rose-100 space-y-2 text-sm">
+                    <div className="flex justify-between text-gray-600">
+                      <span>Servicio:</span>
+                      <span className="font-medium text-gray-800">{selectedService?.name}</span>
+                    </div>
+                    <div className="flex justify-between text-gray-600">
+                      <span>Fecha y Hora:</span>
+                      <span className="font-medium text-gray-800">{appointmentDate} a las {appointmentTime} hs</span>
+                    </div>
+                    <div className="flex justify-between text-rose-700 font-bold border-t border-rose-200 pt-2 text-base">
+                      <span>Monto Seña a pagar:</span>
+                      <span>${Number(selectedService?.deposit_amount || selectedService?.deposit || 0).toLocaleString('es-AR')}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setStep(2)}
+                      className="w-1/3 py-4 bg-gray-100 text-gray-600 rounded-2xl font-medium cursor-pointer"
+                    >
+                      Volver
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="w-2/3 py-4 bg-emerald-500 hover:bg-emerald-600 disabled:bg-emerald-300 text-white font-medium rounded-2xl shadow-lg shadow-emerald-100 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Confirmar Reserva'}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
           )}
 
           {/* Paso 4: Confirmación y Pago */}
@@ -449,7 +490,6 @@ export default function BookingWizard() {
       {activeTab === 'my_appointments' && (
         <div className="space-y-6">
           {!user ? (
-            /* SI EL USUARIO NO HA INICIADO SESIÓN */
             <div className="text-center py-8 space-y-6">
               <div className="w-16 h-16 bg-rose-100 text-[#AB0F66] rounded-full flex items-center justify-center mx-auto">
                 <User className="w-8 h-8" />
@@ -472,7 +512,6 @@ export default function BookingWizard() {
               </div>
             </div>
           ) : (
-            /* SI EL USUARIO YA INICIÓ SESIÓN */
             <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <h2 className="font-serif text-2xl font-bold text-gray-800">Tus Reservas</h2>
