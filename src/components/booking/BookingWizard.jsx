@@ -47,7 +47,6 @@ export default function BookingWizard() {
   const [appointments, setAppointments] = useState([]);
   const [loadingSearch, setLoadingSearch] = useState(false);
 
-  // Mantener actualizado el nombre cuando se inicia sesión
   useEffect(() => {
     if (user?.name && !clientName) {
       setClientName(user.name);
@@ -128,7 +127,7 @@ export default function BookingWizard() {
 
   const handleReserve = async (e) => {
     e.preventDefault();
-    if (!user) return; // Bloqueo de seguridad si no hay usuario
+    if (!user) return;
     setLoading(true);
 
     try {
@@ -356,7 +355,6 @@ export default function BookingWizard() {
           {step === 3 && (
             <div className="space-y-6">
               {!user ? (
-                /* Muestra el botón de inicio de sesión si el cliente no está autenticado */
                 <div className="text-center py-6 space-y-5 bg-rose-50/40 p-6 rounded-2xl border border-rose-100">
                   <div className="w-12 h-12 bg-rose-100 text-[#AB0F66] rounded-full flex items-center justify-center mx-auto">
                     <User className="w-6 h-6" />
@@ -386,7 +384,6 @@ export default function BookingWizard() {
                   </button>
                 </div>
               ) : (
-                /* Muestra el formulario si ya está logueado */
                 <form onSubmit={handleReserve} className="space-y-6">
                   <h2 className="font-serif text-2xl text-gray-800 font-semibold">Tus Datos de Contacto</h2>
 
@@ -486,7 +483,7 @@ export default function BookingWizard() {
         </>
       )}
 
-      {/* VISTA 2: MIS TURNOS CON LOGIN DE GOOGLE */}
+      {/* VISTA 2: MIS TURNOS CON OPCIÓN DE PAGO DIRECTO */}
       {activeTab === 'my_appointments' && (
         <div className="space-y-6">
           {!user ? (
@@ -538,10 +535,12 @@ export default function BookingWizard() {
                 <div className="space-y-3">
                   {appointments.map((item) => {
                     const isConfirmed = item.status === 'confirmed' || item.status === 'approved' || item.status === 'pagado';
+                    const mpUrl = item.init_point || item.payment_url || item.sandbox_init_point;
+
                     return (
                       <div
                         key={item.id}
-                        className={`p-5 rounded-2xl border flex flex-wrap justify-between items-center transition-all gap-3 ${
+                        className={`p-5 rounded-2xl border flex flex-wrap justify-between items-center transition-all gap-4 ${
                           isConfirmed ? 'bg-emerald-50/40 border-emerald-200' : 'bg-amber-50/40 border-amber-200'
                         }`}
                       >
@@ -557,15 +556,28 @@ export default function BookingWizard() {
                           </div>
                         </div>
 
-                        <div>
+                        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2">
                           {isConfirmed ? (
                             <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-semibold">
                               <CheckCircle2 className="w-3.5 h-3.5" /> Confirmado
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-amber-100 text-amber-800 text-xs font-semibold">
-                              <AlertCircle className="w-3.5 h-3.5" /> Pendiente de Pago
-                            </span>
+                            <>
+                              <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-amber-100 text-amber-800 text-xs font-semibold">
+                                <AlertCircle className="w-3.5 h-3.5" /> Pendiente de Pago
+                              </span>
+                              
+                              {/* Botón de Mercado Pago integrado en Mis Turnos */}
+                              {mpUrl && (
+                                <a
+                                  href={mpUrl}
+                                  target="_self"
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-xs font-semibold shadow-md shadow-sky-100 transition-all cursor-pointer"
+                                >
+                                  <CreditCard className="w-3.5 h-3.5" /> Pagar Seña
+                                </a>
+                              )}
+                            </>
                           )}
                         </div>
                       </div>
