@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Clock, User, ArrowRight, ShieldCheck, CheckCircle2, MessageCircle, 
-  CreditCard, Loader2, AlertCircle, Calendar, Search, CalendarDays, LogOut 
+  Clock, User, ArrowRight, CheckCircle2, MessageCircle, 
+  CreditCard, Loader2, AlertCircle, CalendarDays, LogOut, Search 
 } from 'lucide-react';
 import { GoogleLogin, googleLogout } from '@react-oauth/google';
 import confetti from 'canvas-confetti';
+import MisTurnos from './MisTurnos'; // Importación añadida
 
 const API_BASE = import.meta.env.VITE_BACKEND_URL || 'https://agenda-estetica-backend.onrender.com';
 
@@ -44,9 +45,6 @@ export default function BookingWizard() {
   const [loading, setLoading] = useState(false);
   const [paymentUrl, setPaymentUrl] = useState('');
 
-  const [appointments, setAppointments] = useState([]);
-  const [loadingSearch, setLoadingSearch] = useState(false);
-
   useEffect(() => {
     if (user?.name && !clientName) {
       setClientName(user.name);
@@ -76,7 +74,6 @@ export default function BookingWizard() {
     googleLogout();
     setUser(null);
     localStorage.removeItem('google_user');
-    setAppointments([]);
   };
 
   useEffect(() => {
@@ -95,30 +92,6 @@ export default function BookingWizard() {
     };
     fetchServices();
   }, []);
-
-  useEffect(() => {
-    if (activeTab === 'my_appointments' && user?.email) {
-      fetchUserAppointments(user.email);
-    }
-  }, [activeTab, user]);
-
-  const fetchUserAppointments = async (email) => {
-    setLoadingSearch(true);
-    try {
-      const res = await fetch(`${API_BASE}/api/appointments/client/${encodeURIComponent(email)}`);
-      const data = await res.json();
-      if (data.status === 'success') {
-        setAppointments(data.data || []);
-      } else {
-        setAppointments([]);
-      }
-    } catch (err) {
-      console.error('Error al consultar turnos:', err);
-      setAppointments([]);
-    } finally {
-      setLoadingSearch(false);
-    }
-  };
 
   const handleNextStep = () => {
     if (step === 1 && selectedService) setStep(2);
@@ -351,7 +324,7 @@ export default function BookingWizard() {
             </div>
           )}
 
-          {/* Paso 3: Identificación (Google) y Datos de Contacto */}
+          {/* Paso 3: Datos de Contacto y Login opcional */}
           {step === 3 && (
             <div className="space-y-6">
               {!user ? (
@@ -483,111 +456,9 @@ export default function BookingWizard() {
         </>
       )}
 
-      {/* VISTA 2: MIS TURNOS CON OPCIÓN DE PAGO DIRECTO */}
+      {/* VISTA 2: MIS TURNOS CON BÚSQUEDA POR TELÉFONO */}
       {activeTab === 'my_appointments' && (
-        <div className="space-y-6">
-          {!user ? (
-            <div className="text-center py-8 space-y-6">
-              <div className="w-16 h-16 bg-rose-100 text-[#AB0F66] rounded-full flex items-center justify-center mx-auto">
-                <User className="w-8 h-8" />
-              </div>
-              <div>
-                <h2 className="font-serif text-2xl font-bold text-gray-800 mb-2">Consulta tus Reservas</h2>
-                <p className="text-sm text-gray-500 max-w-sm mx-auto">
-                  Para ver tus turnos agendados y su estado de pago, inicia sesión con tu cuenta de Google.
-                </p>
-              </div>
-
-              <div className="flex justify-center pt-2">
-                <GoogleLogin
-                  onSuccess={handleGoogleSuccess}
-                  onError={() => console.error('Error de autenticación con Google')}
-                  shape="pill"
-                  theme="outline"
-                  locale="es_AR"
-                />
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <h2 className="font-serif text-2xl font-bold text-gray-800">Tus Reservas</h2>
-                <button
-                  onClick={() => fetchUserAppointments(user.email)}
-                  className="text-xs font-semibold text-[#AB0F66] hover:underline cursor-pointer"
-                >
-                  Actualizar
-                </button>
-              </div>
-
-              {loadingSearch ? (
-                <div className="flex flex-col items-center justify-center py-10 text-rose-500 gap-2">
-                  <Loader2 className="w-7 h-7 animate-spin" />
-                  <p className="text-xs text-gray-500">Buscando tus turnos...</p>
-                </div>
-              ) : appointments.length === 0 ? (
-                <div className="text-center py-10 bg-gray-50 rounded-2xl border border-dashed border-gray-200 space-y-2">
-                  <Calendar className="w-8 h-8 text-gray-400 mx-auto" />
-                  <p className="text-gray-600 text-sm font-medium">No tienes reservas registradas.</p>
-                  <p className="text-xs text-gray-400">Las reservas vinculadas a {user.email} aparecerán aquí.</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {appointments.map((item) => {
-                    const isConfirmed = item.status === 'confirmed' || item.status === 'approved' || item.status === 'pagado';
-                    const mpUrl = item.init_point || item.payment_url || item.sandbox_init_point;
-
-                    return (
-                      <div
-                        key={item.id}
-                        className={`p-5 rounded-2xl border flex flex-wrap justify-between items-center transition-all gap-4 ${
-                          isConfirmed ? 'bg-emerald-50/40 border-emerald-200' : 'bg-amber-50/40 border-amber-200'
-                        }`}
-                      >
-                        <div className="space-y-1">
-                          <h4 className="font-bold text-gray-800">{item.service_name || 'Tratamiento Estético'}</h4>
-                          <div className="flex items-center gap-3 text-xs text-gray-500">
-                            <span className="flex items-center gap-1">
-                              <Calendar className="w-3.5 h-3.5 text-[#AB0F66]" /> {new Date(item.appointment_date).toLocaleDateString('es-AR')}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Clock className="w-3.5 h-3.5 text-[#AB0F66]" /> {new Date(item.appointment_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} hs
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2">
-                          {isConfirmed ? (
-                            <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-semibold">
-                              <CheckCircle2 className="w-3.5 h-3.5" /> Confirmado
-                            </span>
-                          ) : (
-                            <>
-                              <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-amber-100 text-amber-800 text-xs font-semibold">
-                                <AlertCircle className="w-3.5 h-3.5" /> Pendiente de Pago
-                              </span>
-                              
-                              {/* Botón de Mercado Pago integrado en Mis Turnos */}
-                              {mpUrl && (
-                                <a
-                                  href={mpUrl}
-                                  target="_self"
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-xs font-semibold shadow-md shadow-sky-100 transition-all cursor-pointer"
-                                >
-                                  <CreditCard className="w-3.5 h-3.5" /> Pagar Seña
-                                </a>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+        <MisTurnos />
       )}
     </main>
   );

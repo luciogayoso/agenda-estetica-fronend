@@ -27,7 +27,7 @@ export default function MisTurnos() {
     } catch (err) {
       console.error('Error al consultar turnos:', err);
       setAppointments([]);
-    } fontally {
+    } finally {
       setLoading(false);
       setSearched(true);
     }
@@ -35,7 +35,6 @@ export default function MisTurnos() {
 
   return (
     <div className="max-w-xl mx-auto p-6 bg-white rounded-3xl shadow-xl border border-rose-100 my-8">
-      {/* Encabezado */}
       <div className="text-center mb-6">
         <h2 className="font-serif text-2xl font-bold text-gray-800 mb-2">Mis Turnos</h2>
         <p className="text-sm text-gray-500">
@@ -43,7 +42,6 @@ export default function MisTurnos() {
         </p>
       </div>
 
-      {/* Formulario de búsqueda */}
       <form onSubmit={handleSearch} className="flex gap-2 mb-8">
         <input
           type="tel"
@@ -63,19 +61,17 @@ export default function MisTurnos() {
         </button>
       </form>
 
-      {/* Resultados */}
       {searched && (
         <div className="space-y-4">
           {appointments.length === 0 ? (
             <div className="text-center py-8 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
-              <p className="text-gray-500 text-sm">No encontramos turnos registrados con el teléfono <span className="font-semibold">{phone}</span>.</p>
+              <p className="text-gray-500 text-sm">
+                No encontramos turnos registrados con el teléfono <span className="font-semibold">{phone}</span>.
+              </p>
             </div>
           ) : (
             appointments.map((item) => {
-              // Verificación del estado de confirmación
               const isConfirmed = item.status === 'confirmed' || item.status === 'approved' || item.status === 'pagado';
-              
-              // Extraer link de Mercado Pago desde las posibles propiedades devueltas por la API
               const mpUrl = item.init_point || item.payment_url || item.sandbox_init_point;
 
               return (
@@ -85,7 +81,6 @@ export default function MisTurnos() {
                     isConfirmed ? 'bg-emerald-50/40 border-emerald-200' : 'bg-amber-50/40 border-amber-200'
                   }`}
                 >
-                  {/* Detalles del servicio */}
                   <div className="space-y-1">
                     <h4 className="font-bold text-gray-800 text-base">{item.service_name || 'Tratamiento Estético'}</h4>
                     <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
@@ -100,7 +95,6 @@ export default function MisTurnos() {
                     </div>
                   </div>
 
-                  {/* Estado y Acción de Pago */}
                   <div className="flex flex-col items-start sm:items-end gap-2 w-full sm:w-auto">
                     {isConfirmed ? (
                       <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-semibold">
