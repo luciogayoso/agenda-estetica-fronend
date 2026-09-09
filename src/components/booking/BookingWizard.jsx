@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { GoogleLogin, googleLogout } from '@react-oauth/google';
 import confetti from 'canvas-confetti';
-import MisTurnos from './MisTurnos'; // Importación añadida
+import MisTurnos from '../turnosCliente/MisTurnos'; // Importación añadida
 
 const API_BASE = import.meta.env.VITE_BACKEND_URL || 'https://agenda-estetica-backend.onrender.com';
 
