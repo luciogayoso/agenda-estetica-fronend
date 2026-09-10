@@ -8,8 +8,9 @@ export default function MisTurnos({ currentUser, onGoogleLogin }) {
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [payingId, setPayingId] = useState(null);
 
-  // Detectar automáticamente el email de Google al cargar o al cambiar la sesión
+  // Detectar email de Google automáticamente al iniciar o cambiar sesión
   useEffect(() => {
     const storedUser = localStorage.getItem('user_profile');
     const parsedUser = storedUser ? JSON.parse(storedUser) : null;
@@ -26,7 +27,7 @@ export default function MisTurnos({ currentUser, onGoogleLogin }) {
     }
   }, [currentUser]);
 
-  // Consulta al backend pasando directamente el correo de la cuenta Google
+  // Petición al backend filtrando únicamente por el email de la cuenta Google
   const fetchAppointments = async (emailQuery) => {
     if (!emailQuery) return;
     setLoading(true);
@@ -38,7 +39,7 @@ export default function MisTurnos({ currentUser, onGoogleLogin }) {
       if (data.status === 'success' || Array.isArray(data.data)) {
         const rawList = Array.isArray(data.data) ? data.data : (data.appointments || []);
         
-        // Filtro estricto por la dirección de Gmail autenticada
+        // Garantizar filtrado estricto por la dirección de Gmail activa
         const userTurnos = rawList.filter((item) => {
           const itemEmail = (item.client_email || item.email || '').toLowerCase();
           return itemEmail === emailQuery.toLowerCase();
@@ -54,6 +55,37 @@ export default function MisTurnos({ currentUser, onGoogleLogin }) {
     } finally {
       setLoading(false);
       setSearched(true);
+    }
+  };
+
+  // Manejador para iniciar el pago de la seña si el link aún no estaba generado
+  const handlePayDeposit = async (appointment) => {
+    const directUrl = appointment.init_point || appointment.payment_url || appointment.sandbox_init_point;
+    
+    if (directUrl) {
+      window.open(directUrl, '_blank');
+      return;
+    }
+
+    // Si no existía link de pago previo, lo generamos dinámicamente mediante el endpoint `/pay`
+    setPayingId(appointment.id);
+    try {
+      const res = await fetch(`${API_BASE}/api/appointments/${appointment.id}/pay`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await res.json();
+
+      if (data.status === 'success' && data.init_point) {
+        window.open(data.init_point, '_blank');
+      } else {
+        alert(data.message || 'No se pudo generar el enlace de pago.');
+      }
+    } catch (err) {
+      console.error('Error al generar pago:', err);
+      alert('Ocurrió un error al conectar con Mercado Pago.');
+    } finally {
+      setPayingId(null);
     }
   };
 
@@ -89,7 +121,7 @@ export default function MisTurnos({ currentUser, onGoogleLogin }) {
           </div>
         ) : (
           <p className="text-xs text-gray-500">
-            Iniciá sesión con tu cuenta de Google para acceder a tus citas.
+            Iniciá sesión con tu cuenta de Google para consultar tus citas reservadas.
           </p>
         )}
       </div>
@@ -98,7 +130,7 @@ export default function MisTurnos({ currentUser, onGoogleLogin }) {
       {!userEmail && (
         <div className="flex flex-col items-center gap-4 my-6 p-8 bg-gray-50 rounded-2xl border border-gray-100 text-center">
           <p className="text-sm text-gray-600 font-medium">
-            Para proteger tu información, iniciá sesión con tu cuenta de Google:
+            Para ver tus turnos, iniciá sesión de forma segura con Google:
           </p>
 
           <button
@@ -124,7 +156,7 @@ export default function MisTurnos({ currentUser, onGoogleLogin }) {
         </div>
       )}
 
-      {/* Listado de turnos una vez autenticado */}
+      {/* Listado de turnos obtenidos */}
       {!loading && searched && userEmail && (
         <div className="space-y-4">
           {appointments.length === 0 ? (
@@ -137,10 +169,7 @@ export default function MisTurnos({ currentUser, onGoogleLogin }) {
             appointments.map((item) => {
               const statusLower = (item.status || item.payment_status || '').toLowerCase();
               
-              const isPaid = ['approved', 'pagado', 'paid', 'completed'].includes(statusLower);
-              const isConfirmed = isPaid || statusLower === 'confirmed' || statusLower === 'confirmado';
-
-              const mpUrl = item.init_point || item.payment_url || item.sandbox_init_point || item.preference_url;
+              const isPaid = ['approved', 'pagado', 'paid', 'completed', 'confirmed', 'confirmado'].includes(statusLower);
 
               return (
                 <div
@@ -174,24 +203,24 @@ export default function MisTurnos({ currentUser, onGoogleLogin }) {
                     ) : (
                       <>
                         <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-amber-100 text-amber-800 text-xs font-semibold">
-                          <AlertCircle className="w-3.5 h-3.5 text-amber-600" /> 
-                          {isConfirmed ? 'Turno Reservado (Pendiente de Seña)' : 'Pendiente de Pago'}
+                          <AlertCircle className="w-3.5 h-3.5 text-amber-600" /> Pendiente de Seña
                         </span>
 
-                        {mpUrl ? (
-                          <a
-                            href={mpUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-xs font-semibold shadow-md transition-all w-full sm:w-auto text-center"
-                          >
-                            <CreditCard className="w-3.5 h-3.5" /> Pagar Seña con Mercado Pago <ExternalLink className="w-3 h-3 ml-0.5 opacity-80" />
-                          </a>
-                        ) : (
-                          <span className="text-[11px] text-gray-400 italic">
-                            Link de pago no generado
-                          </span>
-                        )}
+                        <button
+                          onClick={() => handlePayDeposit(item)}
+                          disabled={payingId === item.id}
+                          className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-xs font-semibold shadow-md transition-all w-full sm:w-auto cursor-pointer disabled:opacity-50"
+                        >
+                          {payingId === item.id ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Generando Pago...
+                            </>
+                          ) : (
+                            <>
+                              <CreditCard className="w-3.5 h-3.5" /> Pagar Seña con Mercado Pago <ExternalLink className="w-3 h-3 ml-0.5 opacity-80" />
+                            </>
+                          )}
+                        </button>
                       </>
                     )}
                   </div>
