@@ -1,16 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Calendar, Clock, CheckCircle2, AlertCircle, Loader2, CreditCard, ExternalLink, UserCheck } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_BACKEND_URL || 'https://agenda-estetica-backend.onrender.com';
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || 'TU_GOOGLE_CLIENT_ID_AQUI.apps.googleusercontent.com';
 
-export default function MisTurnos({ currentUser, onGoogleLogin }) {
+export default function MisTurnos({ currentUser, onGoogleLoginSuccess }) {
   const [userEmail, setUserEmail] = useState('');
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [payingId, setPayingId] = useState(null);
+  
+  const googleBtnRef = useRef(null);
 
-  // Detectar email de Google automáticamente al iniciar o cambiar sesión
+  // 1. Detectar usuario activo o del localStorage
   useEffect(() => {
     const storedUser = localStorage.getItem('user_profile');
     const parsedUser = storedUser ? JSON.parse(storedUser) : null;
@@ -27,7 +30,57 @@ export default function MisTurnos({ currentUser, onGoogleLogin }) {
     }
   }, [currentUser]);
 
-  // Petición al backend filtrando únicamente por el email de la cuenta Google
+  // 2. Inicializar el botón de Google Sign-In sin conflictos de GSI_LOGGER
+  useEffect(() => {
+    if (!userEmail && window.google && googleBtnRef.current) {
+      googleBtnRef.current.innerHTML = ''; // Limpia renderizados duplicados
+
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: handleGoogleResponse
+      });
+
+      window.google.accounts.id.renderButton(googleBtnRef.current, {
+        theme: 'outline',
+        size: 'large',
+        type: 'standard',
+        shape: 'rectangular',
+        text: 'signin_with',
+        logo_alignment: 'left',
+        width: 250
+      });
+    }
+  }, [userEmail]);
+
+  // Callback al presionar el botón de Google
+  const handleGoogleResponse = (response) => {
+    try {
+      const base64Url = response.credential.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split('')
+          .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+          .join('')
+      );
+      
+      const profile = JSON.parse(jsonPayload);
+      console.log('✅ Sesión con Google iniciada:', profile);
+
+      localStorage.setItem('user_profile', JSON.stringify(profile));
+      setUserEmail(profile.email);
+
+      if (onGoogleLoginSuccess) {
+        onGoogleLoginSuccess(profile);
+      }
+
+      fetchAppointments(profile.email);
+    } catch (error) {
+      console.error('Error procesando respuesta de Google:', error);
+    }
+  };
+
+  // 3. Consultar los turnos asociados al correo en Supabase
   const fetchAppointments = async (emailQuery) => {
     if (!emailQuery) return;
     setLoading(true);
@@ -39,7 +92,6 @@ export default function MisTurnos({ currentUser, onGoogleLogin }) {
       if (data.status === 'success' || Array.isArray(data.data)) {
         const rawList = Array.isArray(data.data) ? data.data : (data.appointments || []);
         
-        // Garantizar filtrado estricto por la dirección de Gmail activa
         const userTurnos = rawList.filter((item) => {
           const itemEmail = (item.client_email || item.email || '').toLowerCase();
           return itemEmail === emailQuery.toLowerCase();
@@ -50,7 +102,7 @@ export default function MisTurnos({ currentUser, onGoogleLogin }) {
         setAppointments([]);
       }
     } catch (err) {
-      console.error('Error al obtener los turnos:', err);
+      console.error('Error al consultar turnos:', err);
       setAppointments([]);
     } finally {
       setLoading(false);
@@ -58,7 +110,7 @@ export default function MisTurnos({ currentUser, onGoogleLogin }) {
     }
   };
 
-  // Manejador para iniciar el pago de la seña si el link aún no estaba generado
+  // 4. Pagar la seña usando Mercado Pago mediante la API
   const handlePayDeposit = async (appointment) => {
     const directUrl = appointment.init_point || appointment.payment_url || appointment.sandbox_init_point;
     
@@ -67,7 +119,6 @@ export default function MisTurnos({ currentUser, onGoogleLogin }) {
       return;
     }
 
-    // Si no existía link de pago previo, lo generamos dinámicamente mediante el endpoint `/pay`
     setPayingId(appointment.id);
     try {
       const res = await fetch(`${API_BASE}/api/appointments/${appointment.id}/pay`, {
@@ -121,34 +172,24 @@ export default function MisTurnos({ currentUser, onGoogleLogin }) {
           </div>
         ) : (
           <p className="text-xs text-gray-500">
-            Iniciá sesión con tu cuenta de Google para consultar tus citas reservadas.
+            Iniciá sesión con tu cuenta de Google para acceder a tus citas.
           </p>
         )}
       </div>
 
       {/* Si NO hay usuario autenticado con Google */}
       {!userEmail && (
-        <div className="flex flex-col items-center gap-4 my-6 p-8 bg-gray-50 rounded-2xl border border-gray-100 text-center">
-          <p className="text-sm text-gray-600 font-medium">
-            Para ver tus turnos, iniciá sesión de forma segura con Google:
+        <div className="flex flex-col items-center justify-center my-6 p-8 bg-gray-50 rounded-2xl border border-gray-100 text-center">
+          <p className="text-sm text-gray-600 font-medium mb-4">
+            Para proteger tu información, iniciá sesión con tu cuenta de Google:
           </p>
 
-          <button
-            onClick={onGoogleLogin}
-            className="px-6 py-3.5 bg-white border border-gray-300 shadow-md hover:shadow-lg text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-all flex items-center gap-3 cursor-pointer text-sm"
-          >
-            <svg className="w-5 h-5" viewBox="0 0 24 24">
-              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-            </svg>
-            Iniciar sesión con Google
-          </button>
+          {/* Contenedor donde se inserta el botón oficial de Google */}
+          <div ref={googleBtnRef} className="min-h-[44px] flex justify-center items-center"></div>
         </div>
       )}
 
-      {/* Indicador de carga */}
+      {/* Indicador de Carga */}
       {loading && (
         <div className="text-center py-12">
           <Loader2 className="w-8 h-8 text-[#AB0F66] animate-spin mx-auto mb-2" />
@@ -156,7 +197,7 @@ export default function MisTurnos({ currentUser, onGoogleLogin }) {
         </div>
       )}
 
-      {/* Listado de turnos obtenidos */}
+      {/* Listado de Turnos */}
       {!loading && searched && userEmail && (
         <div className="space-y-4">
           {appointments.length === 0 ? (
@@ -168,7 +209,6 @@ export default function MisTurnos({ currentUser, onGoogleLogin }) {
           ) : (
             appointments.map((item) => {
               const statusLower = (item.status || item.payment_status || '').toLowerCase();
-              
               const isPaid = ['approved', 'pagado', 'paid', 'completed', 'confirmed', 'confirmado'].includes(statusLower);
 
               return (
